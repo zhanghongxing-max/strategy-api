@@ -1,47 +1,48 @@
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Dict
-from difflib import get_close_matches
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="策略识别助手", description="帮股民快速理解你输入的买卖策略关键词", version="1.0")
+# 初始化 FastAPI
+app = FastAPI()
 
-# 简单的策略解释库
-strategy_library = {
-    "macd金叉": "MACD金叉通常表示买入信号",
-    "ma多头排列": "均线多头排列说明趋势向上，考虑买入",
-    "kdj金叉": "KDJ指标出现金叉，也可能是买入信号",
-    "macd死叉": "MACD死叉可能是卖出信号",
-    "ma死叉": "均线死叉说明趋势走弱，考虑卖出",
-    "kdj死叉": "KDJ死叉通常是卖出提示"
-}
+# 允许跨域（确保前端本地调试时能访问）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class StrategyInput(BaseModel):
+# 请求模型
+class StrategyRequest(BaseModel):
     buyConditions: List[str]
     sellConditions: List[str]
 
+# 通俗易懂的策略词典
+strategy_library = {
+    "macd金叉": "📈【MACD金叉】说明当前上涨力量增强，常用于观察买入时机。",
+    "macd死叉": "⚠️【MACD死叉】可能是市场转弱信号，需注意风险。",
+    "kdj死叉": "⚠️【KDJ死叉】可能是短线回落信号，请根据实际走势灵活判断。",
+    "kdj金叉": "📈【KDJ金叉】短期资金介入迹象，可观察是否持续放量。",
+    "ma多头排列": "📊【均线多头排列】表示短期、中期、长期趋势一致向上，市场整体偏强。",
+    "成交量放大": "🔍【成交量放大】市场活跃度提高，通常伴随趋势加速。",
+    "macd背离": "⚠️【MACD背离】价格与指标走势不同步，需谨防反转。",
+    "均线拐头向上": "📈【均线拐头向上】均线方向开始上行，可能是趋势转强的初期信号。",
+}
+
 @app.post("/运行回测")
-def run_strategy(input: StrategyInput):
-    buy_explanations = []
-    sell_explanations = []
-
-    # 分析买入条件
-    for cond in input.buyConditions:
-        matched = get_close_matches(cond.lower(), strategy_library.keys(), n=1, cutoff=0.6)
-        if matched:
-            buy_explanations.append(strategy_library[matched[0]])
-        else:
-            buy_explanations.append(f"无法识别 '{cond}'，请检查拼写")
-
-    # 分析卖出条件
-    for cond in input.sellConditions:
-        matched = get_close_matches(cond.lower(), strategy_library.keys(), n=1, cutoff=0.6)
-        if matched:
-            sell_explanations.append(strategy_library[matched[0]])
-        else:
-            sell_explanations.append(f"无法识别 '{cond}'，请检查拼写")
-
+def run_strategy(strategy: StrategyRequest):
+    buy_explanations = [
+        strategy_library.get(item.lower(), f"📌 无法识别“{item}”，请检查拼写或换个说法")
+        for item in strategy.buyConditions
+    ]
+    sell_explanations = [
+        strategy_library.get(item.lower(), f"📌 无法识别“{item}”，请检查拼写或换个说法")
+        for item in strategy.sellConditions
+    ]
     return {
-        "✅ 买入建议": buy_explanations,
-        "🚫 卖出建议": sell_explanations
+        "买入建议": buy_explanations,
+        "卖出提醒": sell_explanations
     }
